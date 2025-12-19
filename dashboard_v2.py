@@ -80,11 +80,20 @@ def cargar_datos():
 def ajustar_dia_habil(df):
     """Ajusta sábados y domingos al viernes anterior"""
     df = df.copy()
-    df['FECHA_DE_PAGO_AJUSTADA'] = df['FECHA_DE_PAGO'].apply(lambda x: 
-        x - timedelta(days=1) if x.weekday() == 6
-        else x - timedelta(days=2) if x.weekday() == 5
-        else x
-    )
+    # Convertir FECHA_DE_PAGO a datetime si no lo es
+    df['FECHA_DE_PAGO'] = pd.to_datetime(df['FECHA_DE_PAGO'], errors='coerce')
+    
+    def adjust_date(x):
+        if pd.isna(x):
+            return x
+        if x.weekday() == 6:  # Domingo
+            return x - timedelta(days=1)
+        elif x.weekday() == 5:  # Sábado
+            return x - timedelta(days=2)
+        else:
+            return x
+    
+    df['FECHA_DE_PAGO_AJUSTADA'] = df['FECHA_DE_PAGO'].apply(adjust_date)
     return df
 
 def procesar_datos(df_nov, df_dic):
@@ -147,11 +156,35 @@ st.markdown("---")
 # Filtros separados por mes
 col_nov, col_dic = st.columns(2)
 
+# Configurar fechas predeterminadas: desde primer pago del mes hasta el día actual de cada mes
+hoy = datetime.now().date()
+dia_actual = hoy.day
+
+# Noviembre: desde primer pago hasta el día actual (mismo día que hoy pero en noviembre)
+fecha_nov_inicio = fechas_nov[0].date() if fechas_nov else datetime.now().date()
+fecha_nov_fin = None
+for fecha in fechas_nov:
+    if fecha.date().day == dia_actual:
+        fecha_nov_fin = fecha.date()
+        break
+if fecha_nov_fin is None and fechas_nov:
+    fecha_nov_fin = fechas_nov[-1].date()
+
+# Diciembre: desde primer pago hasta hoy (día 19)
+fecha_dic_inicio = fechas_dic[0].date() if fechas_dic else datetime.now().date()
+fecha_dic_fin = None
+for fecha in fechas_dic:
+    if fecha.date().day == dia_actual:
+        fecha_dic_fin = fecha.date()
+        break
+if fecha_dic_fin is None and fechas_dic:
+    fecha_dic_fin = fechas_dic[-1].date()
+
 with col_nov:
     st.markdown("### 📅 **NOVIEMBRE 2025**")
     nov_inicio = st.date_input(
         "Fecha Inicio Noviembre",
-        value=fechas_nov[0].date() if fechas_nov else datetime.now().date(),
+        value=fecha_nov_inicio,
         min_value=fechas_nov[0].date() if fechas_nov else datetime.now().date(),
         max_value=fechas_nov[-1].date() if fechas_nov else datetime.now().date(),
         key="nov_inicio"
@@ -159,7 +192,7 @@ with col_nov:
     
     nov_fin = st.date_input(
         "Fecha Fin Noviembre",
-        value=fechas_nov[-1].date() if fechas_nov else datetime.now().date(),
+        value=fecha_nov_fin if fecha_nov_fin else fecha_nov_inicio,
         min_value=fechas_nov[0].date() if fechas_nov else datetime.now().date(),
         max_value=fechas_nov[-1].date() if fechas_nov else datetime.now().date(),
         key="nov_fin"
@@ -169,7 +202,7 @@ with col_dic:
     st.markdown("### 📅 **DICIEMBRE 2025**")
     dic_inicio = st.date_input(
         "Fecha Inicio Diciembre",
-        value=fechas_dic[0].date() if fechas_dic else datetime.now().date(),
+        value=fecha_dic_inicio,
         min_value=fechas_dic[0].date() if fechas_dic else datetime.now().date(),
         max_value=fechas_dic[-1].date() if fechas_dic else datetime.now().date(),
         key="dic_inicio"
@@ -177,7 +210,7 @@ with col_dic:
     
     dic_fin = st.date_input(
         "Fecha Fin Diciembre",
-        value=fechas_dic[-1].date() if fechas_dic else datetime.now().date(),
+        value=fecha_dic_fin if fecha_dic_fin else fecha_dic_inicio,
         min_value=fechas_dic[0].date() if fechas_dic else datetime.now().date(),
         max_value=fechas_dic[-1].date() if fechas_dic else datetime.now().date(),
         key="dic_fin"
